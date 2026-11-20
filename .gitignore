@@ -1,0 +1,10 @@
+/dados-locais/
+/build/
+/ps2-native-recomp/
+/tekken5-recomp/
+*.iso
+/Tekken5Launcher.exe
+/tekken5-perfil.xml*
+/compilacao.log
+/.tekken-update/
+/*.partial/
