@@ -21,7 +21,8 @@ Em **Gráficos → Proporção da tela**, escolha **16:9 · Panorâmico** (padr�
 
 O launcher ajusta um byte da opção de tela do disco americano e solicita a mesma proporção ao renderer Vulkan. No Story Battle, o modo panorâmico original aproxima a câmera e mostra menos da arena na vertical. A referência para o endereço da opção de tela está no [catálogo de patches PS2-Widescreen](https://github.com/PS2-Widescreen/OPL-Widescreen-Cheats/blob/main/CHT/SLUS_210.59.cht).
 
-- **Gráficos** permite alternar entre janela e tela cheia e escolher a resolução interna de 1× a 4×. Em escalas maiores o runtime usa um caminho de desenho diferente, com custo variável. A configuração inicial é 1×.
+- **Gráficos** permite alternar entre janela e tela cheia. Na v0.1.3, o VSync vem ligado e pode ser desativado. As escalas internas nas lutas são 1× (original), 2×, 3× (1920 × 1344, largura Full HD), 4× (2560 × 1792, largura Quad HD) e 6× (3840 × 2688, largura 4K UHD experimental). A configuração inicial é 1×. A imagem é ajustada à janela ou à tela após a renderização.
+- Nos testes em três arenas na Radeon RX 6600, a escala 3× ficou perto de 60 FPS. Em 6× com VSync, as medianas foram de 22 FPS na cidade, 20 FPS no campo ao luar e 11 FPS no templo em chamas.
 - **Mods** permite ativar um patch de dados por vez, no formato de texto do ps2-native-recomp (momento, endereço hexadecimal, largura em bytes, valor hexadecimal). Use patches feitos para a edição americana.
 - **Lançamentos** verifica as versões do launcher no GitHub e instala o pacote escolhido. O atualizador mantém a compilação local, o perfil e o cartão de memória.
 

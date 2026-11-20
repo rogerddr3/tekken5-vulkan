@@ -21,6 +21,7 @@ namespace Tekken5Launcher {
         DateTime verifiedDate;
         bool busy;
         Process game;
+        static readonly int[] scales = {1,2,3,4,6};
         const string DiscHash = "AEC7958A90D603DAEC0BF850F2F0EB19029CF11F";
 
         T Find<T>(string name) where T : FrameworkElement { return (T)window.FindName(name); }
@@ -31,6 +32,7 @@ namespace Tekken5Launcher {
         void Status(string message) { Find<TextBlock>("Status").Text = message; }
         static string Quote(string path) { return "\"" + path + "\""; }
         bool Built { get { return File.Exists(runner) && File.Exists(boot); } }
+        string PreparationMarker { get { return Path.Combine(Path.GetDirectoryName(runner),"preparo-v2.ok"); } }
 
         public Launcher(string directory) {
             root = directory;
@@ -52,9 +54,15 @@ namespace Tekken5Launcher {
             aspect.ItemsSource = new[]{"16:9 · Panorâmico","4:3 · Original"};
             aspect.SelectedIndex = (string)config.Element("proporcao")=="4:3" ? 1 : 0;
             var scale = Find<ComboBox>("Scale");
-            scale.ItemsSource = new[]{"1× · Original","2×","3×","4×"};
+            scale.ItemsSource = new[]{"1× · 640 × 448 (original)", "2× · 1280 × 896",
+                "3× · 1920 × 1344 (largura Full HD)", "4× · 2560 × 1792 (largura Quad HD)",
+                "6× · 3840 × 2688 (largura 4K UHD, experimental)"};
             int n;
-            scale.SelectedIndex = int.TryParse((string)config.Element("escala"),out n) && n>=1 && n<=4 ? n-1 : 0;
+            scale.SelectedIndex = int.TryParse((string)config.Element("escala"),out n) ? Math.Max(0,Array.IndexOf(scales,n)) : 0;
+            var vsync = Find<CheckBox>("VSync");
+            vsync.IsChecked = (string)config.Element("vsync")!="0";
+            vsync.Checked += (s,e)=>Persist();
+            vsync.Unchecked += (s,e)=>Persist();
             display.SelectionChanged += (s,e)=>Persist();
             aspect.SelectionChanged += (s,e)=>Persist();
             scale.SelectionChanged += (s,e)=>Persist();
@@ -83,13 +91,14 @@ namespace Tekken5Launcher {
             try {
                 new XElement("perfil",new XElement("iso",iso),new XElement("patch",patch),
                     new XElement("tela",Find<ComboBox>("Display").SelectedIndex),
+                    new XElement("vsync",Find<CheckBox>("VSync").IsChecked==true?"1":"0"),
                     new XElement("proporcao",Find<ComboBox>("Aspect").SelectedIndex==0?"16:9":"4:3"),
-                    new XElement("escala",Find<ComboBox>("Scale").SelectedIndex+1)).Save(temp);
+                    new XElement("escala",scales[Find<ComboBox>("Scale").SelectedIndex])).Save(temp);
                 if(File.Exists(profile)) File.Replace(temp,profile,null); else File.Move(temp,profile);
             } catch(Exception ex) { Error(ex); }
         }
         void Controls() {
-            foreach(string id in new[]{"Play","Choose","ChoosePatch","Display","Aspect","Scale","ReleaseButton"})
+            foreach(string id in new[]{"Play","Choose","ChoosePatch","Display","Aspect","Scale","VSync","ReleaseButton"})
                 Find<FrameworkElement>(id).IsEnabled=!busy && game==null;
             Find<Button>("DisablePatch").IsEnabled=!busy && game==null && patch.Length>0;
             Find<Button>("Play").Content=Built?"JOGAR":"PREPARAR JOGO";
@@ -132,7 +141,7 @@ namespace Tekken5Launcher {
             verifiedPath=iso; verifiedDate=source.LastWriteTimeUtc;
         }
         bool NeedsPreparation() {
-            string marker=Path.Combine(Path.GetDirectoryName(runner),"preparo-v1.ok");
+            string marker=PreparationMarker;
             if (!File.Exists(marker)) return true;
             var known=new System.Collections.Generic.HashSet<string>(File.ReadAllLines(marker),StringComparer.OrdinalIgnoreCase);
             using(var sha=SHA256.Create()) {
@@ -168,6 +177,7 @@ namespace Tekken5Launcher {
             busy=true; Controls();
             try {
                 await VerifyDisc();
+                int scale=scales[Find<ComboBox>("Scale").SelectedIndex];
                 if(!Built) {
                     Status("Compilando o jogo para Windows. Acompanhe em compilacao.log.");
                     await Task.Run(()=>Build(false));
@@ -175,7 +185,8 @@ namespace Tekken5Launcher {
                     Status("Preparando o renderer e os programas de luta antes de jogar. Detalhes em compilacao.log.");
                     try { await Task.Run(()=>Build(true)); }
                     catch(Exception ex) {
-                        if(!Built || MessageBox.Show(window,ex.Message+" Abrir o jogo com a compilação existente?",
+                        if(!Built || (scale==6 && !File.Exists(PreparationMarker))) throw;
+                        if(MessageBox.Show(window,ex.Message+" Abrir o jogo com a compilação existente?",
                             "Tekken 5 Vulkan",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) throw;
                     }
                 }
@@ -190,8 +201,8 @@ namespace Tekken5Launcher {
                     +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")
                     +(wide?" --widescreen":"")+(patch.Length==0?"":" --patches "+Quote(patch))+" --patches "+Quote(aspectPatch);
                 var info=new ProcessStartInfo(runner,args){UseShellExecute=false,WorkingDirectory=root};
-                int scale=Find<ComboBox>("Scale").SelectedIndex+1;
                 info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan";
+                info.EnvironmentVariables["PS2_PRESENT_MODE"]=Find<CheckBox>("VSync").IsChecked==true?"fifo":"immediate";
                 info.EnvironmentVariables["PS2_GPU_HW"]=scale==1?"1":"0";
                 info.EnvironmentVariables["PS2_SCALE"]=scale.ToString();
                 info.EnvironmentVariables["PS2_WINDOW_TITLE"]="Tekken 5 - Vulkan";

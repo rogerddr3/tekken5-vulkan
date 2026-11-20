@@ -68,10 +68,35 @@ def install(url, sha256, prefix, folder, probe):
             stage.rename(target)
 
 
+def replace_once(path, old, new):
+    data = path.read_bytes()
+    if new in data:
+        return
+    if data.count(old) != 1:
+        raise ValueError(f"Revisão incompatível: {path.name}")
+    stage = path.with_suffix(".tekken.tmp")
+    stage.write_bytes(data.replace(old, new))
+    stage.replace(path)
+
+
 def prepare_vulkan():
     # The pinned renderer builds its mipmap pipeline in parallel with the base shaders.
     # Join that worker before handing the GPU to the game, while retaining parallel startup.
     source = ENGINE / "runtime/src/gs/gpu/gpu.cpp"
+    replace_once(source, b'std::atoi(scale)), 1u, 4u)', b'std::atoi(scale)), 1u, 6u)')
+    nl = b"\r\n" if b"\r\n" in source.read_bytes() else b"\n"
+    limits = b"    wgpuAdapterGetLimits(adapter, &supported);"
+    replace_once(source, limits, nl.join([
+        limits,
+        b'    const int requested_scale = std::clamp(std::atoi(os::env("PS2_SCALE").c_str()), 1, 6);',
+        b'    const auto scratch_bytes = (8ull << 20) * requested_scale * requested_scale;',
+        b'    if (requested_scale > 4 && (supported.maxStorageBufferBindingSize < scratch_bytes || supported.maxBufferSize < scratch_bytes)) {',
+        b'        std::fprintf(stderr, "[gpu] %dx requires a %llu MiB storage buffer on this adapter\\n", requested_scale, scratch_bytes >> 20);',
+        b'        return give_up();',
+        b'    }',
+    ]))
+    window = ENGINE / "host/window.cpp"
+    replace_once(window, b'env("PS2_SCALE").c_str()), 1, 4)', b'env("PS2_SCALE").c_str()), 1, 6)')
     original = source.read_bytes()
     newline = b"\r\n" if b"\r\n" in original else b"\n"
     anchor = newline.join([b"    release_module();", b"    ensure_capacity();"])

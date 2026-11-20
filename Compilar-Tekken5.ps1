@@ -49,7 +49,7 @@ try {
     }
     Run cmake ($config + @('-B',$build,"-DPS2_GENERATED=$gen","-DCMAKE_CXX_FLAGS=$gameFlags"))
     Run cmake @('--build',$build,'--target','ps2run','--parallel',"$Jobs")
-    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v1.ok'), [string[]]$recordings)
+    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v2.ok'), [string[]]$recordings)
 } finally {
     Pop-Location
     $env:Path = $originalPath

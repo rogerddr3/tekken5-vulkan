@@ -55,7 +55,8 @@
    <TextBlock Text="Gráficos" FontSize="30" FontWeight="Bold"/><TextBlock Text="Vulkan" Foreground="#E9C586" Margin="0,6,0,20"/>
    <TextBlock Text="Exibição" Margin="0,0,0,6"/><ComboBox Name="Display" HorizontalAlignment="Left" Width="235"/>
    <TextBlock Text="Proporção da tela" Margin="0,12,0,6"/><ComboBox Name="Aspect" AutomationProperties.Name="Proporção da tela" HorizontalAlignment="Left" Width="235"/>
-   <TextBlock Text="Resolução interna" Margin="0,18,0,6"/><ComboBox Name="Scale" HorizontalAlignment="Left" Width="235"/>
+    <TextBlock Text="Resolução interna nas lutas" Margin="0,18,0,6"/><ComboBox Name="Scale" AutomationProperties.Name="Resolução interna nas lutas" HorizontalAlignment="Left" Width="410"/>
+    <CheckBox Name="VSync" Content="Sincronização vertical (VSync)" Foreground="White" Margin="0,16,0,0"/>
    <TextBlock Text="As alterações entram em vigor na próxima abertura do jogo." Foreground="#CDD8CB" Margin="0,16,0,0"/>
   </StackPanel>
   <StackPanel Name="Settings" Grid.Row="1" Margin="34,25" Visibility="Collapsed">
