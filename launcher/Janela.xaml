@@ -1,0 +1,78 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Tekken 5 Vulkan" Width="960" Height="600" MinWidth="850" MinHeight="520" WindowStartupLocation="CenterScreen"
+ FontFamily="Segoe UI" FontSize="15" Foreground="#F6F2E9" Background="#17241F" UseLayoutRounding="True">
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Foreground" Value="#F5F4EC"/><Setter Property="Background" Value="#304339"/>
+   <Setter Property="Padding" Value="20,10"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border x:Name="surface" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="4">
+     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="surface" Property="Opacity" Value=".82"/></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="surface" Property="Opacity" Value=".48"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
+ <Grid><Grid.RowDefinitions><RowDefinition Height="65"/><RowDefinition/><RowDefinition Height="42"/></Grid.RowDefinitions>
+  <DockPanel Background="#111D19" LastChildFill="False">
+   <Button DockPanel.Dock="Right" Name="ReleaseButton" Margin="6,0,16,0" Padding="12,8" VerticalAlignment="Center" AutomationProperties.Name="Lançamentos"/>
+   <TextBlock Text="TEKKEN  /  5" FontWeight="Bold" VerticalAlignment="Center" Margin="28,0,30,0"/>
+   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <Button Name="Inicio" Content="Início" Margin="0,0,6,0"/><Button Name="Graficos" Content="Gráficos" Margin="0,0,6,0"/><Button Name="Mods" Content="Mods" Margin="0,0,6,0"/><Button Name="Opcoes" Content="Configurações"/>
+   </StackPanel>
+  </DockPanel>
+  <Grid Name="Home" Grid.Row="1" ClipToBounds="True">
+   <Viewbox Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
+    <Canvas Width="960" Height="460" ClipToBounds="True">
+     <Canvas.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#697970" Offset="0"/><GradientStop Color="#243B34" Offset=".52"/><GradientStop Color="#122520" Offset="1"/></LinearGradientBrush></Canvas.Background>
+     <Path Fill="#A9B7A3" Opacity=".15" Data="M590,0 L612,0 435,280 322,280 Z M865,0 L888,0 957,259 861,259 Z"/>
+     <Path Fill="#EEE0AB" Opacity=".22" Data="M668,0 L694,0 650,276 552,276 Z M816,0 L837,0 926,272 849,272 Z"/>
+     <Path Stroke="#21372F" StrokeThickness="9" Data="M0,8 L960,8 M0,65 L960,65 M4,65 L64,8 124,65 184,8 244,65 304,8 364,65 424,8 484,65 544,8 604,65 664,8 724,65 784,8 844,65 904,8 964,65"/>
+     <Path Fill="#F1DBA3" Data="M575,68 h42 l-5,5 h-42 z M658,68 h42 l-5,5 h-42 z M790,68 h42 l-5,5 h-42 z M870,68 h42 l-5,5 h-42 z"/>
+     <Path Fill="#233B32" Data="M0,207 L405,263 960,191 v100 L407,333 0,274 Z"/>
+     <Path Stroke="#697C68" Opacity=".6" StrokeThickness="3" Data="M0,224 L405,276 960,212 M0,244 L405,295 960,232 M0,266 L405,316 960,255"/>
+     <Path Fill="#62786A" Data="M-75,415 L645,279 1020,331 430,513 Z"/><Path Fill="#385044" Data="M-75,415 L430,513 1020,331 1020,357 430,540 -75,440 Z"/>
+     <Path Stroke="#293D32" StrokeThickness="9" Data="M647,214 v70 M936,251 v84 M193,299 v82"/>
+     <Path Stroke="#C8AB70" StrokeThickness="3" Data="M193,299 L647,214 936,251 M193,317 L647,232 936,269 M193,335 L647,250 936,287"/>
+    </Canvas>
+   </Viewbox>
+   <Border><Border.Background><LinearGradientBrush StartPoint="0,1" EndPoint=".9,0"><GradientStop Color="#DB101B16" Offset="0"/><GradientStop Color="#59101B16" Offset=".48"/><GradientStop Color="#00101B16" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+   <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="44,0,25,35">
+    <TextBlock Text="TEKKEN" FontFamily="Impact" FontSize="62" LineHeight="65" LineStackingStrategy="BlockLineHeight"/>
+    <TextBlock Text="5" FontFamily="Impact" FontSize="62" Foreground="#E9C586" Margin="0,-8,0,10"/>
+    <TextBlock Name="HomePack" Margin="1,0,0,16"/>
+    <Button Name="Play" Content="JOGAR" FontWeight="Bold" FontSize="18" Background="#DDA548" Foreground="#18251E" Width="173" HorizontalAlignment="Left"/>
+   </StackPanel>
+  </Grid>
+  <StackPanel Name="Library" Grid.Row="1" Margin="34,25" Visibility="Collapsed">
+   <TextBlock Text="Mods" FontSize="30" FontWeight="Bold"/><TextBlock Text="Patch de dados" FontWeight="SemiBold" Margin="0,20,0,4"/>
+   <TextBlock Text="Selecione um arquivo de patch do ps2-native-recomp para Tekken 5 USA." TextWrapping="Wrap"/>
+   <TextBlock Name="PatchName" TextWrapping="Wrap" Margin="0,18,0,12"/>
+   <StackPanel Orientation="Horizontal"><Button Name="ChoosePatch" Content="Escolher patch…" Margin="0,0,8,0"/><Button Name="DisablePatch" Content="Desativar"/></StackPanel>
+  </StackPanel>
+  <StackPanel Name="VideoPage" Grid.Row="1" Margin="34,25" Visibility="Collapsed">
+   <TextBlock Text="Gráficos" FontSize="30" FontWeight="Bold"/><TextBlock Text="Vulkan" Foreground="#E9C586" Margin="0,6,0,20"/>
+   <TextBlock Text="Exibição" Margin="0,0,0,6"/><ComboBox Name="Display" HorizontalAlignment="Left" Width="235"/>
+   <TextBlock Text="Resolução interna" Margin="0,18,0,6"/><ComboBox Name="Scale" HorizontalAlignment="Left" Width="235"/>
+   <TextBlock Text="As alterações entram em vigor na próxima abertura do jogo." Foreground="#CDD8CB" Margin="0,16,0,0"/>
+  </StackPanel>
+  <StackPanel Name="Settings" Grid.Row="1" Margin="34,25" Visibility="Collapsed">
+   <TextBlock Text="Configurações" FontSize="30" FontWeight="Bold"/>
+   <TextBlock Text="Disco americano · SLUS-21059 · v1.00" FontWeight="SemiBold" Margin="0,22,0,6"/>
+   <TextBlock Name="Disc" TextWrapping="Wrap" Margin="0,4,0,12"/><Button Name="Choose" HorizontalAlignment="Left" Content="Escolher ISO…"/>
+   <TextBlock Text="Durante a luta, F1 abre o menu de controles." Foreground="#CDD8CB" Margin="0,20,0,0"/>
+  </StackPanel>
+  <Popup Name="ReleasePopup" Placement="Bottom" PlacementTarget="{Binding ElementName=ReleaseButton}" StaysOpen="False" AllowsTransparency="True" VerticalOffset="5">
+   <Border Width="296" Padding="14" CornerRadius="5" BorderBrush="#53664D" BorderThickness="1" Background="#192820">
+    <StackPanel>
+     <TextBlock Text="Lançamentos" Foreground="#E9C586" FontSize="17" FontWeight="SemiBold" Margin="4,0,4,8"/>
+     <ScrollViewer MaxHeight="234" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Name="ReleaseList"/></ScrollViewer>
+     <TextBlock Name="ReleaseNote" Foreground="#D7DFD3" TextWrapping="Wrap" Margin="4,9,4,9"/>
+     <Button Name="ReleaseReload" Content="Verificar atualizações" Padding="8,7"/>
+    </StackPanel>
+   </Border>
+  </Popup>
+  <Border Grid.Row="2" Background="#101B17" Padding="24,0"><DockPanel><Button Name="CancelUpdate" DockPanel.Dock="Right" Content="Cancelar" Padding="12,3" Margin="8,5,0,5" Visibility="Collapsed"/><TextBlock Name="Status" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="#D7DFD3"/></DockPanel></Border>
+ </Grid>
+</Window>

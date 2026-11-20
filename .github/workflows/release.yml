@@ -1,0 +1,23 @@
+name: Publicar launcher para Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [VERSION]
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar e empacotar
+        shell: powershell
+        run: ./launcher/Empacotar.ps1
+      - name: Publicar o pacote
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          gh release create "v$version" dist/Tekken5Vulkan-Windows-x64.zip --target $env:GITHUB_SHA --title "Tekken 5 Vulkan $version" --notes "Launcher Windows x64. Extraia o ZIP e abra Tekken5Launcher.exe. A primeira compilação usa sua ISO americana."
