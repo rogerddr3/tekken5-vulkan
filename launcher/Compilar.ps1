@@ -1,4 +1,4 @@
-param([string]$Destino = (Split-Path -Parent $PSScriptRoot),[version]$Versao='0.1.0')
+param([string]$Destino = (Split-Path -Parent $PSScriptRoot),[version]$Versao=(Get-Content (Join-Path $PSScriptRoot '../VERSION') -Raw).Trim())
 $ErrorActionPreference='Stop'
 $framework = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319'
 $wpf = Join-Path $framework WPF

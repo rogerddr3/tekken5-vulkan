@@ -48,11 +48,15 @@ namespace Tekken5Launcher {
             var display = Find<ComboBox>("Display");
             display.ItemsSource = new[]{"Janela","Tela cheia"};
             display.SelectedIndex = (string)config.Element("tela")=="1" ? 1 : 0;
+            var aspect = Find<ComboBox>("Aspect");
+            aspect.ItemsSource = new[]{"16:9 · Panorâmico","4:3 · Original"};
+            aspect.SelectedIndex = (string)config.Element("proporcao")=="4:3" ? 1 : 0;
             var scale = Find<ComboBox>("Scale");
             scale.ItemsSource = new[]{"1× · Original","2×","3×","4×"};
             int n;
             scale.SelectedIndex = int.TryParse((string)config.Element("escala"),out n) && n>=1 && n<=4 ? n-1 : 0;
             display.SelectionChanged += (s,e)=>Persist();
+            aspect.SelectionChanged += (s,e)=>Persist();
             scale.SelectionChanged += (s,e)=>Persist();
             foreach (string name in new[]{"Inicio","Graficos","Mods","Opcoes"}) Bind(name,()=>Page(name));
             Bind("Choose",()=>ChooseDisc());
@@ -79,12 +83,13 @@ namespace Tekken5Launcher {
             try {
                 new XElement("perfil",new XElement("iso",iso),new XElement("patch",patch),
                     new XElement("tela",Find<ComboBox>("Display").SelectedIndex),
+                    new XElement("proporcao",Find<ComboBox>("Aspect").SelectedIndex==0?"16:9":"4:3"),
                     new XElement("escala",Find<ComboBox>("Scale").SelectedIndex+1)).Save(temp);
                 if(File.Exists(profile)) File.Replace(temp,profile,null); else File.Move(temp,profile);
             } catch(Exception ex) { Error(ex); }
         }
         void Controls() {
-            foreach(string id in new[]{"Play","Choose","ChoosePatch","Display","Scale","ReleaseButton"})
+            foreach(string id in new[]{"Play","Choose","ChoosePatch","Display","Aspect","Scale","ReleaseButton"})
                 Find<FrameworkElement>(id).IsEnabled=!busy && game==null;
             Find<Button>("DisablePatch").IsEnabled=!busy && game==null && patch.Length>0;
             Find<Button>("Play").Content=Built?"JOGAR":"PREPARAR JOGO";
@@ -151,8 +156,14 @@ namespace Tekken5Launcher {
                 }
                 if(patch.Length>0) ValidatePatch(patch);
                 foreach(var folder in new[]{"vu0","vu1"}) Directory.CreateDirectory(Path.Combine(gameFolder,folder));
+                bool wide=Find<ComboBox>("Aspect").SelectedIndex==0;
+                // The SLUS-21059 screen setting is the high byte of the options word.
+                // Keep the other three option bytes and the user's separate mod intact.
+                string aspectPatch=Path.Combine(gameFolder,wide?"launcher-16x9.txt":"launcher-4x3.txt");
+                File.WriteAllText(aspectPatch,wide?"1 003E453B 1 01\n":"1 003E453B 1 00\n",System.Text.Encoding.ASCII);
                 string args=Quote(boot)+" --disc "+Quote(iso)+" --game-dir "+Quote(gameFolder)+" --memcard "+Quote(Path.Combine(gameFolder,"tekken5.ps2"))
-                    +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")+(patch.Length==0?"":" --patches "+Quote(patch));
+                    +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")
+                    +(wide?" --widescreen":"")+(patch.Length==0?"":" --patches "+Quote(patch))+" --patches "+Quote(aspectPatch);
                 var info=new ProcessStartInfo(runner,args){UseShellExecute=false,WorkingDirectory=root};
                 info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan"; info.EnvironmentVariables["PS2_GPU_HW"]="1";
                 info.EnvironmentVariables["PS2_SCALE"]=(Find<ComboBox>("Scale").SelectedIndex+1).ToString();

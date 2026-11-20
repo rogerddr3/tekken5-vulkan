@@ -13,6 +13,10 @@ Launcher em português para uma recompilação de Tekken 5 no Windows x64. O jog
 
 ## Opções
 
+Desde a v0.1.1, **Gráficos → Proporção da tela** permite escolher **16:9 · Panorâmico** (padrão) ou **4:3 · Original**. A escolha vale ao abrir o jogo em janela ou em tela cheia e pode ser usada junto com um patch de dados da aba Mods. Quem já compilou o jogo na v0.1.0 pode atualizar o launcher e jogar diretamente.
+
+O launcher ajusta um byte da opção de tela do disco americano e solicita a mesma proporção ao renderer Vulkan. No Story Battle, o modo panorâmico original aproxima a câmera e mostra menos da arena na vertical. A referência para o endereço da opção de tela está no [catálogo de patches PS2-Widescreen](https://github.com/PS2-Widescreen/OPL-Widescreen-Cheats/blob/main/CHT/SLUS_210.59.cht).
+
 - **Gráficos** permite alternar entre janela e tela cheia e escolher a resolução interna de 1× a 4×. Em escalas maiores o runtime usa um caminho de desenho diferente, com custo variável. A configuração inicial é 1×.
 - **Mods** permite ativar um patch de dados por vez, no formato de texto do ps2-native-recomp (momento, endereço hexadecimal, largura em bytes, valor hexadecimal). Use patches feitos para a edição americana.
 - **Lançamentos** verifica as versões do launcher no GitHub e instala o pacote escolhido. O atualizador mantém a compilação local, o perfil e o cartão de memória.
