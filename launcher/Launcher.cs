@@ -131,10 +131,28 @@ namespace Tekken5Launcher {
             if(hash!=DiscHash) throw new InvalidDataException("O conteúdo da ISO difere do disco americano SLUS-21059 v1.00.");
             verifiedPath=iso; verifiedDate=source.LastWriteTimeUtc;
         }
-        void Build() {
-            var script=Path.Combine(root,"Preparar-Projeto.ps1");
+        bool NeedsPreparation() {
+            string marker=Path.Combine(Path.GetDirectoryName(runner),"preparo-v1.ok");
+            if (!File.Exists(marker)) return true;
+            var known=new System.Collections.Generic.HashSet<string>(File.ReadAllLines(marker),StringComparer.OrdinalIgnoreCase);
+            using(var sha=SHA256.Create()) {
+                foreach(string unit in new[]{"vu0","vu1"}) {
+                    string dir=Path.Combine(gameFolder,unit);
+                    if (!Directory.Exists(dir)) continue;
+                    foreach(string file in Directory.GetFiles(dir,"*.bin")) {
+                        using(var input=File.OpenRead(file)) {
+                            string entry=unit+"/"+Path.GetFileName(file)+" "+BitConverter.ToString(sha.ComputeHash(input)).Replace("-","");
+                            if (!known.Remove(entry)) return true;
+                        }
+                    }
+                }
+            }
+            return known.Count!=0;
+        }
+        void Build(bool optimize) {
+            var script=Path.Combine(root,optimize?"Compilar-Tekken5.ps1":"Preparar-Projeto.ps1");
             if(!File.Exists(script)) throw new FileNotFoundException("Extraia todos os arquivos do pacote antes de preparar o jogo.",script);
-            var info=new ProcessStartInfo("powershell.exe","-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "+Quote(script)+" -Iso "+Quote(iso))
+            var info=new ProcessStartInfo("powershell.exe","-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "+Quote(script)+" -Iso "+Quote(iso)+(optimize?" -Otimizar":""))
                 {WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
             using(var log=new StreamWriter(Path.Combine(root,"compilacao.log"),false))
             using(var process=new Process {StartInfo=info}) {
@@ -152,7 +170,14 @@ namespace Tekken5Launcher {
                 await VerifyDisc();
                 if(!Built) {
                     Status("Compilando o jogo para Windows. Acompanhe em compilacao.log.");
-                    await Task.Run((Action)Build);
+                    await Task.Run(()=>Build(false));
+                } else if(await Task.Run((Func<bool>)NeedsPreparation)) {
+                    Status("Preparando o renderer e os programas de luta antes de jogar. Detalhes em compilacao.log.");
+                    try { await Task.Run(()=>Build(true)); }
+                    catch(Exception ex) {
+                        if(!Built || MessageBox.Show(window,ex.Message+" Abrir o jogo com a compilação existente?",
+                            "Tekken 5 Vulkan",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) throw;
+                    }
                 }
                 if(patch.Length>0) ValidatePatch(patch);
                 foreach(var folder in new[]{"vu0","vu1"}) Directory.CreateDirectory(Path.Combine(gameFolder,folder));
@@ -165,8 +190,10 @@ namespace Tekken5Launcher {
                     +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")
                     +(wide?" --widescreen":"")+(patch.Length==0?"":" --patches "+Quote(patch))+" --patches "+Quote(aspectPatch);
                 var info=new ProcessStartInfo(runner,args){UseShellExecute=false,WorkingDirectory=root};
-                info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan"; info.EnvironmentVariables["PS2_GPU_HW"]="1";
-                info.EnvironmentVariables["PS2_SCALE"]=(Find<ComboBox>("Scale").SelectedIndex+1).ToString();
+                int scale=Find<ComboBox>("Scale").SelectedIndex+1;
+                info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan";
+                info.EnvironmentVariables["PS2_GPU_HW"]=scale==1?"1":"0";
+                info.EnvironmentVariables["PS2_SCALE"]=scale.ToString();
                 info.EnvironmentVariables["PS2_WINDOW_TITLE"]="Tekken 5 - Vulkan";
                 info.EnvironmentVariables["PS2_VU_CXX"]=Path.Combine(engine,"tools","toolchain","llvm-mingw-20260908-ucrt-x86_64","bin","clang++.exe");
                 game=Process.Start(info);

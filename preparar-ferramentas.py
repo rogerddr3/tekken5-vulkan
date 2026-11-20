@@ -68,6 +68,46 @@ def install(url, sha256, prefix, folder, probe):
             stage.rename(target)
 
 
+def prepare_vulkan():
+    # The pinned renderer builds its mipmap pipeline in parallel with the base shaders.
+    # Join that worker before handing the GPU to the game, while retaining parallel startup.
+    source = ENGINE / "runtime/src/gs/gpu/gpu.cpp"
+    original = source.read_bytes()
+    newline = b"\r\n" if b"\r\n" in original else b"\n"
+    anchor = newline.join([b"    release_module();", b"    ensure_capacity();"])
+    patched = newline.join([
+        b"#ifndef __EMSCRIPTEN__",
+        b"    if (g_raster_mip_thread && g_raster_mip_thread->joinable()) {",
+        b"        g_raster_mip_thread->join();",
+        b"        g_raster_mip_ready.store(true, std::memory_order_release);",
+        b'        std::fprintf(stderr, "[gpu] mipmap pipeline ready before gameplay\\n");',
+        b"    }",
+        b"#endif", anchor,
+    ])
+    if patched not in original:
+        if original.count(anchor) != 1:
+            raise ValueError("Revisão do renderer incompatível com o preparo dos shaders.")
+        stage = source.with_suffix(".tekken.tmp")
+        stage.write_bytes(original.replace(anchor, patched))
+        stage.replace(source)
+
+    # Portable render-state keys from Tekken 5. The driver builds its own pipelines.
+    keys = """0000f802 00087835 00007002 0000f002 0040f059 00007035 00087a35
+    0000fa02 0000f202 00187213 00087235 0001fa02 0003fa02 00097a35 00037a35
+    00197a13 00137a13 00097c35 00037c35 00087035 00187013 00107013 00407002
+    00407059 00187a13""".split()
+    folder = ENGINE / "games/tekken5/hw"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "pipelines.txt"
+    existing = path.read_text(encoding="ascii").splitlines() if path.exists() else []
+    missing = [key for key in keys if key not in existing]
+    if missing:
+        stage = path.with_suffix(".tmp")
+        stage.write_text("\n".join(existing + missing) + "\n", encoding="ascii")
+        stage.replace(path)
+
+
 if __name__ == "__main__":
     for package in PACKAGES:
         install(*package)
+    prepare_vulkan()

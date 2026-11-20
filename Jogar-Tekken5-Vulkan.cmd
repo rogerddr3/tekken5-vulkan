@@ -16,6 +16,9 @@ if not exist "%ELF%" goto build
 if not exist "%RUNNER%" goto build
 set "PS2_GPU_BACKEND=vulkan"
 set "PS2_GPU_HW=1"
+set "RENDER_SCALE=%PS2_SCALE%"
+if not defined RENDER_SCALE if exist "%GAME%\keys.ini" for /f "tokens=1,2 delims== " %%K in ('type "%GAME%\keys.ini"') do if /i "%%K"=="scale" set "RENDER_SCALE=%%L"
+for %%S in (2 3 4) do if "%RENDER_SCALE%"=="%%S" set "PS2_GPU_HW=0"
 set "PS2_WINDOW_TITLE=Tekken 5 - Vulkan"
 set "PS2_VU_CXX=%ENGINE%\tools\toolchain\llvm-mingw-20260908-ucrt-x86_64\bin\clang++.exe"
 for %%D in (vu0 vu1) do if not exist "%GAME%\%%D" mkdir "%GAME%\%%D"
