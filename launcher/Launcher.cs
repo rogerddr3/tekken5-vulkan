@@ -32,7 +32,7 @@ namespace Tekken5Launcher {
         void Status(string message) { Find<TextBlock>("Status").Text = message; }
         static string Quote(string path) { return "\"" + path + "\""; }
         bool Built { get { return File.Exists(runner) && File.Exists(boot); } }
-        string PreparationMarker { get { return Path.Combine(Path.GetDirectoryName(runner),"preparo-v2.ok"); } }
+        string PreparationMarker { get { return Path.Combine(Path.GetDirectoryName(runner),"preparo-v3.ok"); } }
 
         public Launcher(string directory) {
             root = directory;
@@ -59,12 +59,16 @@ namespace Tekken5Launcher {
                 "6× · 3840 × 2688 (largura 4K UHD, experimental)"};
             int n;
             scale.SelectedIndex = int.TryParse((string)config.Element("escala"),out n) ? Math.Max(0,Array.IndexOf(scales,n)) : 0;
+            var camera = Find<CheckBox>("WideCamera");
+            camera.IsChecked = (string)config.Element("cameraAmpla")!="0";
+            camera.Checked += (s,e)=>Persist();
+            camera.Unchecked += (s,e)=>Persist();
             var vsync = Find<CheckBox>("VSync");
             vsync.IsChecked = (string)config.Element("vsync")!="0";
             vsync.Checked += (s,e)=>Persist();
             vsync.Unchecked += (s,e)=>Persist();
             display.SelectionChanged += (s,e)=>Persist();
-            aspect.SelectionChanged += (s,e)=>Persist();
+            aspect.SelectionChanged += (s,e)=>{ Persist(); Controls(); };
             scale.SelectionChanged += (s,e)=>Persist();
             foreach (string name in new[]{"Inicio","Graficos","Mods","Opcoes"}) Bind(name,()=>Page(name));
             Bind("Choose",()=>ChooseDisc());
@@ -92,6 +96,7 @@ namespace Tekken5Launcher {
                 new XElement("perfil",new XElement("iso",iso),new XElement("patch",patch),
                     new XElement("tela",Find<ComboBox>("Display").SelectedIndex),
                     new XElement("vsync",Find<CheckBox>("VSync").IsChecked==true?"1":"0"),
+                    new XElement("cameraAmpla",Find<CheckBox>("WideCamera").IsChecked==true?"1":"0"),
                     new XElement("proporcao",Find<ComboBox>("Aspect").SelectedIndex==0?"16:9":"4:3"),
                     new XElement("escala",scales[Find<ComboBox>("Scale").SelectedIndex])).Save(temp);
                 if(File.Exists(profile)) File.Replace(temp,profile,null); else File.Move(temp,profile);
@@ -100,6 +105,7 @@ namespace Tekken5Launcher {
         void Controls() {
             foreach(string id in new[]{"Play","Choose","ChoosePatch","Display","Aspect","Scale","VSync","ReleaseButton"})
                 Find<FrameworkElement>(id).IsEnabled=!busy && game==null;
+            Find<CheckBox>("WideCamera").IsEnabled=!busy && game==null && Find<ComboBox>("Aspect").SelectedIndex==0;
             Find<Button>("DisablePatch").IsEnabled=!busy && game==null && patch.Length>0;
             Find<Button>("Play").Content=Built?"JOGAR":"PREPARAR JOGO";
             Find<TextBlock>("HomePack").Text="Windows x64   ·   Vulkan";
@@ -185,7 +191,7 @@ namespace Tekken5Launcher {
                     Status("Preparando o renderer e os programas de luta antes de jogar. Detalhes em compilacao.log.");
                     try { await Task.Run(()=>Build(true)); }
                     catch(Exception ex) {
-                        if(!Built || (scale==6 && !File.Exists(PreparationMarker))) throw;
+                        if(!Built || !File.Exists(PreparationMarker)) throw;
                         if(MessageBox.Show(window,ex.Message+" Abrir o jogo com a compilação existente?",
                             "Tekken 5 Vulkan",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) throw;
                     }
@@ -201,6 +207,7 @@ namespace Tekken5Launcher {
                     +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")
                     +(wide?" --widescreen":"")+(patch.Length==0?"":" --patches "+Quote(patch))+" --patches "+Quote(aspectPatch);
                 var info=new ProcessStartInfo(runner,args){UseShellExecute=false,WorkingDirectory=root};
+                info.EnvironmentVariables["TK5_WIDE_CAMERA"]=wide && Find<CheckBox>("WideCamera").IsChecked==true?"1":"0";
                 info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan";
                 info.EnvironmentVariables["PS2_PRESENT_MODE"]=Find<CheckBox>("VSync").IsChecked==true?"fifo":"immediate";
                 info.EnvironmentVariables["PS2_GPU_HW"]=scale==1?"1":"0";

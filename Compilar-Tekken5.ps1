@@ -35,6 +35,7 @@ try {
     Run cmake ($config + @('-B','build/tradutores'))
     Run cmake @('--build','build/tradutores','--target','eerecomp','vurecomp','--parallel',"$Jobs")
     if (!$Otimizar) { Run 'build/tradutores/eerecomp.exe' @($elf,'--entries',$entries,'--out',$gen) }
+    Run python @((Join-Path $PSScriptRoot 'CameraLauncher.py'), '--root', $PSScriptRoot, '--source-only')
     $recordings = @(foreach ($unit in 'vu0','vu1') {
         $dir = [IO.Directory]::CreateDirectory((Join-Path $game $unit))
         foreach ($file in Get-ChildItem -LiteralPath $dir.FullName -Filter '*.bin' -File) {
@@ -49,7 +50,7 @@ try {
     }
     Run cmake ($config + @('-B',$build,"-DPS2_GENERATED=$gen","-DCMAKE_CXX_FLAGS=$gameFlags"))
     Run cmake @('--build',$build,'--target','ps2run','--parallel',"$Jobs")
-    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v2.ok'), [string[]]$recordings)
+    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v3.ok'), [string[]]$recordings)
 } finally {
     Pop-Location
     $env:Path = $originalPath
