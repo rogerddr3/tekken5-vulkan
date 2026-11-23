@@ -1,8 +1,10 @@
-# Tekken 5 Vulkan
+# Tekken 5 Recomp — recompilação de PS2 para PC (Windows e Vulkan)
 
-Launcher em português para uma recompilação de Tekken 5 no Windows x64. O jogo usa o backend Vulkan de wgpu e é compilado no seu computador a partir do seu disco americano de PS2 (SLUS‑21059, v1.00).
+**Tekken 5 Recomp** é um projeto de fãs que roda Tekken 5 de PlayStation 2 no PC com Windows x64 e renderização Vulkan. O launcher em português recompila o jogo localmente a partir da sua própria ISO da edição americana de PS2 (SLUS-21059, v1.00).
 
-**[Baixar o launcher para Windows x64](https://github.com/rogerddr3/tekken5-vulkan/raw/refs/heads/main/dist/Tekken5Vulkan-Windows-x64.zip)** · [Lançamentos](https://github.com/rogerddr3/tekken5-vulkan/releases)
+**English:** Tekken 5 Recomp is a fan-made PS2-to-PC recompilation of Tekken 5 for Windows x64 with Vulkan rendering. It builds locally from your own NTSC-U PlayStation 2 disc image.
+
+**[Baixar o launcher para Windows x64 no GitHub Releases](https://github.com/rogerddr3/tekken5-vulkan/releases)**
 
 ## Primeira execução
 
@@ -30,6 +32,6 @@ O perfil fica em `tekken5-perfil.xml`. O cartão de memória fica em `ps2-native
 
 ## Desenvolvimento
 
-`launcher/Compilar.ps1` gera o launcher WPF usando o compilador do .NET Framework do Windows. `launcher/Empacotar.ps1` gera o ZIP público a partir de uma lista explícita de cinco arquivos. Para publicar uma nova versão, atualize `VERSION` em `main`.
+`launcher/Compilar.ps1` gera o launcher WPF usando o compilador do .NET Framework do Windows. `launcher/Empacotar.ps1` gera o ZIP público a partir de uma lista explícita de arquivos. Para publicar uma nova versão, atualize `VERSION` em `main`.
 
 A recompilação e o renderer vêm de [ps2-native-recomp](https://github.com/exoteric33/ps2-native-recomp). A extração dos programas de Tekken 5 usa [tekken5-recomp](https://github.com/MrPrinceYL/tekken5-recomp). O launcher adapta o design e o fluxo de atualização do projeto [Downhill Revived](https://github.com/rogerddr3/downhill-revived). Projeto de fãs independente.
