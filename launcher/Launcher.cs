@@ -30,9 +30,15 @@ namespace Tekken5Launcher {
         }
         void Error(Exception ex) { MessageBox.Show(window,ex.Message,"Tekken 5 Vulkan",MessageBoxButton.OK,MessageBoxImage.Warning); }
         void Status(string message) { Find<TextBlock>("Status").Text = message; }
+        void ShowBuildProgress(bool active) {
+            Find<TextBlock>("Status").Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+            Find<DockPanel>("BuildActivity").Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            Find<ProgressBar>("BuildProgress").IsIndeterminate = active;
+        }
+
         static string Quote(string path) { return "\"" + path + "\""; }
         bool Built { get { return File.Exists(runner) && File.Exists(boot); } }
-        string PreparationMarker { get { return Path.Combine(Path.GetDirectoryName(runner),"preparo-v3.ok"); } }
+        string PreparationMarker { get { return Path.Combine(Path.GetDirectoryName(runner),"preparo-v4.ok"); } }
 
         public Launcher(string directory) {
             root = directory;
@@ -43,6 +49,10 @@ namespace Tekken5Launcher {
             profile = Path.Combine(root,"tekken5-perfil.xml");
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("Janela.xaml"))
                 window = (Window)XamlReader.Load(s);
+            using (var cover = Assembly.GetExecutingAssembly().GetManifestResourceStream("Capa.jpg"))
+                Find<Image>("HomeCover").Source = System.Windows.Media.Imaging.BitmapFrame.Create(cover, System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            using (var icon = Assembly.GetExecutingAssembly().GetManifestResourceStream("Tekken5.ico"))
+                window.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(icon, System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
             XElement config = new XElement("perfil");
             if (File.Exists(profile)) config = XElement.Load(profile);
             iso = (string)config.Element("iso") ?? Path.GetFullPath(Path.Combine(root,"..","SLUS-21059 (1.00).iso"));
@@ -87,7 +97,7 @@ namespace Tekken5Launcher {
             for(int i=0;i<tabs.Length;i++) {
                 bool active=tabs[i]==name;
                 Find<FrameworkElement>(pages[i]).Visibility=active?Visibility.Visible:Visibility.Collapsed;
-                Find<Button>(tabs[i]).Background=(Brush)new BrushConverter().ConvertFrom(active?"#51634C":"#304339");
+                Find<Button>(tabs[i]).Background=(Brush)new BrushConverter().ConvertFrom(active?"#8B302D":"#422127");
             }
         }
         void Persist() {
@@ -185,15 +195,14 @@ namespace Tekken5Launcher {
                 await VerifyDisc();
                 int scale=scales[Find<ComboBox>("Scale").SelectedIndex];
                 if(!Built) {
-                    Status("Compilando o jogo para Windows. Acompanhe em compilacao.log.");
-                    await Task.Run(()=>Build(false));
+                    ShowBuildProgress(true);
+                    try { await Task.Run(()=>Build(false)); }
+                    finally { ShowBuildProgress(false); }
                 } else if(await Task.Run((Func<bool>)NeedsPreparation)) {
                     Status("Preparando o renderer e os programas de luta antes de jogar. Detalhes em compilacao.log.");
                     try { await Task.Run(()=>Build(true)); }
-                    catch(Exception ex) {
+                    catch(IOException) {
                         if(!Built || !File.Exists(PreparationMarker)) throw;
-                        if(MessageBox.Show(window,ex.Message+" Abrir o jogo com a compilação existente?",
-                            "Tekken 5 Vulkan",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) throw;
                     }
                 }
                 if(patch.Length>0) ValidatePatch(patch);
@@ -203,11 +212,12 @@ namespace Tekken5Launcher {
                 // Keep the other three option bytes and the user's separate mod intact.
                 string aspectPatch=Path.Combine(gameFolder,wide?"launcher-16x9.txt":"launcher-4x3.txt");
                 File.WriteAllText(aspectPatch,wide?"1 003E453B 1 01\n":"1 003E453B 1 00\n",System.Text.Encoding.ASCII);
-                string args=Quote(boot)+" --disc "+Quote(iso)+" --game-dir "+Quote(gameFolder)+" --memcard "+Quote(Path.Combine(gameFolder,"tekken5.ps2"))
+                string args=Quote(boot)+" --disc "+Quote(iso)+" --game-dir "+Quote(gameFolder)+" --memcard "+Quote(SaveStorage.CardPath(gameFolder))
                     +(Find<ComboBox>("Display").SelectedIndex==1?" --fullscreen":" --window")
                     +(wide?" --widescreen":"")+(patch.Length==0?"":" --patches "+Quote(patch))+" --patches "+Quote(aspectPatch);
                 var info=new ProcessStartInfo(runner,args){UseShellExecute=false,WorkingDirectory=root};
                 info.EnvironmentVariables["TK5_WIDE_CAMERA"]=wide && Find<CheckBox>("WideCamera").IsChecked==true?"1":"0";
+                info.EnvironmentVariables.Remove("PS2_AUTOSAVE_PATH");
                 info.EnvironmentVariables["PS2_GPU_BACKEND"]="vulkan";
                 info.EnvironmentVariables["PS2_PRESENT_MODE"]=Find<CheckBox>("VSync").IsChecked==true?"fifo":"immediate";
                 info.EnvironmentVariables["PS2_GPU_HW"]=scale==1?"1":"0";

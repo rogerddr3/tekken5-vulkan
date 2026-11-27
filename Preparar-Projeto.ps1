@@ -1,7 +1,11 @@
 param([Parameter(Mandatory=$true)][string]$Iso)
+$portable = Join-Path $PSScriptRoot 'ferramentas'
+if (Test-Path "$portable/python/python.exe") {
+    $env:Path = "$portable/python;$portable/cmake/bin;$env:Path"
+}
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
-foreach ($program in 'git','cmake','python') {
+foreach ($program in 'cmake','python') {
     if (!(Get-Command $program -ErrorAction SilentlyContinue)) { throw "Instale $program e abra o launcher novamente." }
 }
 & python -c 'import sys;sys.exit(0 if sys.version_info >= (3,11) else 1)'
@@ -23,6 +27,7 @@ foreach ($dependency in @(
         if ($LASTEXITCODE) { throw "Falha ao preparar $repo." }
         Rename-Item -LiteralPath $stage -NewName $folder
     }
+    if ((Test-Path "$portable/python/python.exe") -and !(Test-Path "$folder/.git")) { continue }
     $head = & git -C $folder rev-parse HEAD
     if ($LASTEXITCODE -or $head -ne $commit) { throw "A revisao local de $folder difere da versao usada pelo launcher." }
 }

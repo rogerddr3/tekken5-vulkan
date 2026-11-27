@@ -132,7 +132,40 @@ def prepare_vulkan():
         stage.replace(path)
 
 
+BUNDLED_MODES_PATCH = None
+
+
+def prepare_modes():
+    patch = BUNDLED_MODES_PATCH
+    if patch is None:
+        patch = (ENGINE.parent / "patches/tekken5-modes.patch").read_text(encoding="utf-8")
+    for section in patch.split("--- a/")[1:]:
+        name, _, hunks = section.split("\n", 2)
+        path = ENGINE / name
+        data = path.read_bytes() if path.exists() else b""
+        newline = b"\r\n" if b"\r\n" in data else b"\n"
+        updated = data.replace(b"\r\n", b"\n")
+        for hunk in hunks.split("@@ -")[1:]:
+            lines = hunk.split("\n", 1)[1].splitlines(keepends=True)
+            before = "".join(line[1:] for line in lines if line[0] in " -").encode()
+            after = "".join(line[1:] for line in lines if line[0] in " +").encode()
+            if after and after in updated:
+                continue
+            if before and updated.count(before) == 1:
+                updated = updated.replace(before, after, 1)
+            elif not before and not updated:
+                updated = after
+            else:
+                raise ValueError(f"Revisão incompatível para Arcade History e Devil Within: {name}")
+        updated = updated.replace(b"\n", newline)
+        if updated != data:
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
+                temp.write(updated)
+            Path(temp.name).replace(path)
+
+
 if __name__ == "__main__":
     for package in PACKAGES:
         install(*package)
+    prepare_modes()
     prepare_vulkan()

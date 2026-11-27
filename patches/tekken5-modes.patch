@@ -1,0 +1,346 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -539,6 +549,19 @@
+     endif()
+ 
+     add_executable(ps2run host/main.cpp host/crash.cpp)  # crash.cpp: the lines a crash writes to the log
++      if(EXISTS "${PS2_GENERATED}/devil/table.cpp")
++          foreach(image devil loader lzstub tekken1 tekken2 tekken3)
++              set(folder "${PS2_GENERATED}/${image}")
++              file(GLOB units CONFIGURE_DEPENDS "${folder}/unit_*.cpp")
++              add_library(tk5_${image} OBJECT ${units} host/variant_units.cpp)
++              target_include_directories(tk5_${image} PRIVATE "${folder}")
++              target_link_libraries(tk5_${image} PRIVATE ps2runtime)
++              target_compile_definitions(tk5_${image} PRIVATE gen=tk5_${image}
++                  register_generated_code=register_${image} PS2_VARIANT_UNITS=${image}_units)
++              target_sources(ps2run PRIVATE $<TARGET_OBJECTS:tk5_${image}>)
++          endforeach()
++          target_compile_definitions(ps2run PRIVATE TK5_EXEC_IMAGES)
++      endif()
+     target_link_libraries(ps2run PRIVATE ps2game ps2runtime)
+     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+         target_sources(ps2run PRIVATE host/profile.cpp)
+--- a/host/main.cpp
++++ b/host/main.cpp
+@@ -67,6 +67,61 @@
+ 
+ void register_generated_code();
+ void register_generated_vu();
++#ifdef TK5_EXEC_IMAGES
++#include "ps2/generated.hpp"
++std::span<const ps2::UnitInfo> loader_units();
++std::span<const ps2::UnitInfo> lzstub_units();
++std::span<const ps2::UnitInfo> devil_units();
++std::span<const ps2::UnitInfo> tekken1_units();
++std::span<const ps2::UnitInfo> tekken2_units();
++std::span<const ps2::UnitInfo> tekken3_units();
++
++struct TekkenImage {
++    const char *argument;
++    std::uint32_t entry;
++    std::span<const ps2::UnitInfo> (*units)();
++};
++static constexpr TekkenImage tekken_images[] = {
++    {"p=d", 0x0010069c, devil_units},
++    {"p=1", 0x00100134, tekken1_units},
++    {"p=2", 0x00100134, tekken2_units},
++    {"p=3", 0x0016f61c, tekken3_units},
++};
++
++static bool select_tekken_program(std::uint32_t entry, std::span<const std::string> args) {
++    // The first two arcade titles have the same entry point. TK5DATA4's argument identifies the image.
++    static const TekkenImage *requested = nullptr;
++    ps2::unpacked_entry = 0;
++    if (entry == 0x00100008) {
++        register_generated_code();
++        requested = nullptr;
++        ps2::program_phase = ps2::ProgramPhase::Returned;
++    } else if (entry == 0x01e0001c) {
++        // TK5DATA4 copies its decrypted unpacker above its load segments before calling it.
++        const auto loader = loader_units(), stub = lzstub_units();
++        std::vector<ps2::UnitInfo> code(loader.begin(), loader.end());
++        code.insert(code.end(), stub.begin(), stub.end());
++        ps2::register_units(code.data(), code.size());
++        requested = nullptr;
++        for (const auto &image : tekken_images) {
++            if (std::find(args.begin(), args.end(), image.argument) != args.end()) {
++                requested = &image;
++                ps2::unpacked_entry = image.entry;
++                break;
++            }
++        }
++        ps2::program_phase = ps2::ProgramPhase::Secondary;
++    } else if (requested && entry == requested->entry) {
++        const auto code = requested->units();
++        ps2::register_units(code.data(), code.size());
++        ps2::program_phase = ps2::ProgramPhase::Secondary;
++    } else {
++        std::fprintf(stderr, "[exec] unknown entry %08X\n", entry);
++        return false;
++    }
++    return true;
++}
++#endif
+ 
+ namespace {
+ 
+@@ -897,6 +952,9 @@
+     }
+     register_generated_code();
+     register_generated_vu();
++#ifdef TK5_EXEC_IMAGES
++    ps2::select_exec_image = select_tekken_program;
++#endif
+     // Main processor code the build does not know (code a game copies into a window while it runs) is translated and compiled on the
+     // spot, the game waiting (docs/ee-live.md). On in a window, off in headless runs unless PS2_EE_LIVE asks (a headless run is how
+     // port.sh explores, and it wants the stop): PS2_EE_LIVE=1 (or a folder for the compiled libraries), PS2_EE_LIVE=0 switches it off.
+--- a/runtime/include/ps2/system.hpp
++++ b/runtime/include/ps2/system.hpp
+@@ -88,6 +88,11 @@
+ };
+ 
+ extern Options g_options;
++// A multi-program build installs the native code matching the next guest entry point.
++extern bool (*select_exec_image)(std::uint32_t entry, std::span<const std::string> args);
++enum class ProgramPhase { Boot, Secondary, Returned };
++extern ProgramPhase program_phase;
++extern std::uint32_t unpacked_entry;
+ 
+ struct ThreadContext {
+     Reg128 r[32];
+--- a/runtime/include/ps2/disc.hpp
++++ b/runtime/include/ps2/disc.hpp
+@@ -34,5 +34,6 @@
+ // Host allocation limits: 64 KiB for SYSTEM.CNF and 128 MiB for the ELF (including non-loadable/debug data).
+ // On failure outputs are cleared and why explains the problem.
+ bool read_boot_elf(std::string &program, std::vector<std::uint8_t> &elf, std::string &why);
++bool read_exec_file(const std::string &path, std::vector<std::uint8_t> &elf, std::string &why);
+ 
+ }
+--- a/runtime/src/disc.cpp
++++ b/runtime/src/disc.cpp
+@@ -333,6 +333,10 @@
+     return false;
+ }
+ 
++bool read_exec_file(const std::string &path, std::vector<std::uint8_t> &elf, std::string &why) {
++    return read_boot_file(path, 128u << 20, elf, why);
++}
++
+ std::uint32_t layer1_start() { return g_layer1; }
+ std::uint64_t sector_count() { return g_size / kSector; }
+ 
+--- a/runtime/src/dispatch.cpp
++++ b/runtime/src/dispatch.cpp
+@@ -261,6 +261,12 @@
+ 
+ void dispatch(Cpu &c, std::uint32_t, std::uint32_t depth) {
+     const std::uint32_t pc = c.pc;
++    // Some guest loaders jump directly to the decompressed ELF without an ExecPS2 syscall.
++    if (unpacked_entry && pc == unpacked_entry && select_exec_image) {
++        unpacked_entry = 0;
++        if (!select_exec_image(pc, {})) { halt("untranslated unpacked program"); return; }
++        std::fprintf(stderr, "[exec] entered unpacked program %08X\n", pc);
++    }
+     if (pc & kUnwind) return;
+     if (pc == kHandlerReturn || pc == kIdle) return;
+     const UnitInfo *u = unit_for(pc);
+--- a/runtime/src/kernel.cpp
++++ b/runtime/src/kernel.cpp
+@@ -5,6 +5,7 @@
+ #include "iop/sif.hpp"
+ #include "ps2/generated.hpp"
+ #include "ps2/memory.hpp"
++#include "ps2/disc.hpp"
+ #include "ps2/system.hpp"
+ 
+ #include "ps2/state.hpp"
+@@ -20,7 +21,14 @@
+ #include <cstring>
+ #include <deque>
+ #include <map>
++#include <optional>
+ #include <vector>
++
++namespace ps2 {
++bool (*select_exec_image)(std::uint32_t, std::span<const std::string>) = nullptr;
++ProgramPhase program_phase = ProgramPhase::Boot;
++std::uint32_t unpacked_entry = 0;
++}
+ 
+ namespace ps2::kernel {
+ 
+@@ -602,6 +610,78 @@
+ 
+ std::uint32_t g_boot_argc = 0, g_boot_argv = 0;
+ 
++struct ExecRequest {
++    std::string path;
++    std::uint32_t entry{}, gp{};
++    std::vector<std::string> args;
++};
++static std::optional<ExecRequest> pending_exec;
++
++static bool guest_string(std::uint32_t address, std::string &out) {
++    address &= 0x1fffffffu;
++    if (!address || address >= kRamSize) return false;
++    const char *start = reinterpret_cast<const char *>(g_ram + address);
++    const auto *end = static_cast<const char *>(std::memchr(start, 0, std::min(256u, kRamSize - address)));
++    if (!end) return false;
++    out.assign(start, end);
++    return true;
++}
++
++static void request_exec(Cpu &c, bool load) {
++    if (!select_exec_image) { halt("program asked to run another executable"); return; }
++    ExecRequest next;
++    if (load) {
++        if (!guest_string(arg(c, 0), next.path)) { halt("invalid LoadExecPS2 path"); return; }
++        next.args.push_back(next.path);
++    } else {
++        next.entry = arg(c, 0);
++        next.gp = arg(c, 1);
++    }
++    const auto argc = arg(c, load ? 1 : 2);
++    const auto argv = arg(c, load ? 2 : 3) & 0x1fffffffu;
++    if (argc > 16 || (argc && (!argv || argv > kRamSize - 4u * argc))) { halt("invalid exec arguments"); return; }
++    for (unsigned i = 0; i < argc; ++i) {
++        if (!guest_string(ld32(argv + 4u * i), next.args.emplace_back())) { halt("invalid exec argument"); return; }
++    }
++    pending_exec = std::move(next);
++    c.pc |= kUnwind;
++}
++
++static void enter_exec(Cpu &c) {
++    ExecRequest next = std::move(*pending_exec);
++    pending_exec.reset();
++    if (!next.path.empty()) {
++        std::vector<std::uint8_t> bytes;
++        std::string why;
++        if (!disc::read_exec_file(next.path, bytes, why) || !load_elf(bytes, next.entry)) {
++            halt("LoadExecPS2 failed for " + next.path + " " + why);
++            return;
++        }
++    }
++    if (!select_exec_image(next.entry, next.args)) { halt("no translation for requested executable"); return; }
++    std::fprintf(stderr, "[exec] entry %08X gp %08X", next.entry, next.gp);
++    for (const auto &s : next.args) std::fprintf(stderr, " [%s]", s.c_str());
++    std::fputc('\n', stderr);
++    // Keep the disc, clock and IOP running. Old EE threads must not run in the new program.
++    const auto budget = c.budget;
++    reset();
++    constexpr std::uint32_t argv = 0x800;
++    const auto argc = static_cast<std::uint32_t>(next.args.size());
++    std::uint32_t payload = argv + 4u * (argc + 1);
++    for (unsigned i = 0; i < argc; ++i) {
++        const auto &s = next.args[i];
++        if (payload + s.size() + 1 > kSyscallTable) { halt("exec arguments too large"); return; }
++        st32(argv + i * 4u, payload);
++        std::memcpy(g_ram + payload, s.c_str(), s.size() + 1);
++        payload += static_cast<std::uint32_t>(s.size() + 1);
++    }
++    st32(argv + argc * 4u, 0);
++    start_main_thread(next.entry, next.gp, argc, argv);
++    c.r[28].w[0] = next.gp;
++    c.r[29].w[0] = 0x01ffff00;
++    c.budget = budget;
++}
++
+ void start_main_thread(std::uint32_t entry, std::uint32_t gp, std::uint32_t argc, std::uint32_t argv) {
+     g_boot_argc = argc;
+     g_boot_argv = argv;
+@@ -671,6 +751,7 @@
+ }
+ 
+ void service(Cpu &c) {
++    if (pending_exec) { enter_exec(c); return; }
+     if (g_in_handler) return;
+     run_alarms(c);
+     if (interrupts_enabled()) {
+@@ -1013,7 +1094,7 @@
+     switch (n) {
+     case 0x02: hw::gs_set_crt(arg(c, 0), arg(c, 1), arg(c, 2)); ret(c, 0); break;
+     case 0x04: halt("Exit"); break;
+-    case 0x06: case 0x07: halt("program asked to run another executable"); break;
++    case 0x06: case 0x07: request_exec(c, n == 0x06); break;
+     case 0x10: add_handler(c, g_intc_handlers, false); break;
+     case 0x11: remove_handler(c, g_intc_handlers, false); break;
+     case 0x12: add_handler(c, g_dmac_handlers, true); break;
+--- a/runtime/src/system.cpp
++++ b/runtime/src/system.cpp
+@@ -239,6 +239,7 @@
+ }
+ 
+ void apply_patches(bool boot) {
++    if (program_phase == ProgramPhase::Secondary) return;  // Patch addresses refer to the original executable.
+     for (const Patch &p : g_options.patches) {
+         if (boot ? p.place == 1 : p.place == 0) continue;
+         switch (p.bytes) {
+@@ -728,6 +746,7 @@
+ }
+ 
+ void boot(std::uint32_t entry, const std::vector<std::string> &args) {
++    program_phase = ProgramPhase::Boot;
+     init_watch();
+     hw::reset();
+     kernel::reset();
+--- a/runtime/src/iop/sif.cpp
++++ b/runtime/src/iop/sif.cpp
+@@ -735,9 +735,8 @@
+ // What the EE sends with ps2sdk's SifIopReset(arg, mode) and the vendor library's sceSifRebootIop(image): SIF command 0x80000003,
+ // the text length at +16, the mode at +20 and the text at +24 (iopcontrol.c, AFL-2.0). The text is "rom0:UDNL <image>" to start the
+ // IOP again from an image that replaces the ROM's modules (IOPRP*.IMG), or empty (SifIopReset("", 0)) to start it from the ROM's
+-// own modules. The console forgets everything the game loaded in both cases; `reboot` wipes the IOP only for the empty text, because
+-// an image's modules are not read here (only their FILEIO and LOADFILE versions) and the games that reboot with one are the ones
+-// that work today (docs/iop-reboot-empty.md).
++// own modules. At initial boot the image path selects its FILEIO and LOADFILE versions. After switching executables the old
++// program's resident modules must also be unloaded before the new program loads its drivers.
+ void reboot(std::uint32_t src) {
+     constexpr std::uint32_t kCmdReset = 0x80000003u;
+     const std::uint8_t *packet = ee_ptr(src);
+@@ -747,8 +746,6 @@
+     std::memcpy(&mode, packet + 20, 4);
+     const std::string path(reinterpret_cast<const char *>(packet + 24), strnlen(reinterpret_cast<const char *>(packet + 24), std::min<std::uint32_t>(args_size, 80)));
+     std::fprintf(stderr, "[sif] IOP reboot requested with \"%s\"\n", path.c_str());
+-    if (path.find("IOPRP") != std::string::npos) g_fileio_async = true;
+-    if (const auto space = path.find(' '); space != std::string::npos) read_reboot_image(path.substr(space + 1));
+     std::string image = path;
+     if (image.rfind("rom0:UDNL", 0) == 0) image.erase(0, 9);
+     image.erase(0, image.find_first_not_of(' '));
+@@ -756,7 +753,10 @@
+         std::fprintf(stderr, "[sif] that transfer to IOP address 0 carries command 0x%08X, not a reset\n", cid);
+         return;
+     }
+-    if (!image.empty()) {
++    // After an executable switch, a reboot must remove the preceding program's resident IRX modules.
++    if (!image.empty() && program_phase == ProgramPhase::Boot) {
++        if (image.find("IOPRP") != std::string::npos) g_fileio_async = true;
++        read_reboot_image(image);
+         begin_boot();
+         return;
+     }
+@@ -767,11 +767,15 @@
+     const std::size_t modules = iop::kernel::modules().size(), threads = iop::kernel::thread_ids().size();
+     const std::uint32_t mainaddr = g_mainaddr, msflag = g_msflag, ee_recv = g_ee_recv;
+     iop::soft_reset();
++    if (!image.empty()) {
++        if (image.find("IOPRP") != std::string::npos) g_fileio_async = true;
++        read_reboot_image(image);
++    }
+     g_mainaddr = mainaddr;
+     g_msflag = msflag;
+     g_ee_recv = ee_recv;
+     begin_boot();
+-    std::fprintf(stderr, "[sif] the IOP starts from its own modules (mode %u): %zu modules and %zu threads of the game are gone\n", mode, modules, threads);
++    std::fprintf(stderr, "[sif] IOP reboot (mode %u): unloaded %zu guest modules and %zu threads\n", mode, modules, threads);
+ }
+ 
+ std::uint32_t arg(const iop::Cpu &c, int i) { return i < 4 ? c.r[4 + i] : iop::read32(c.r[29] + 16u + static_cast<std::uint32_t>(i - 4) * 4u); }
+--- a/host/variant_units.cpp
++++ b/host/variant_units.cpp
+@@ -0,0 +1,5 @@
++// Each guest executable has its own translation table, even for overlapping EE addresses.
++#include "table.cpp"
++#include <span>
++
++std::span<const ps2::UnitInfo> PS2_VARIANT_UNITS() { return gen::kUnits; }

@@ -8,10 +8,11 @@
 
 ## Primeira execução
 
-1. Instale Git para Windows, CMake 3.20 ou superior e Python 3.11 ou superior. Habilite o PATH dos três instaladores. Use uma placa com driver Vulkan.
-2. Extraia o ZIP inteiro em uma pasta gravável e abra **Tekken5Launcher.exe**.
-3. Em **Configurações**, escolha a ISO. Em **Início**, clique em **Preparar jogo**. A primeira preparação requer internet para baixar as ferramentas e os projetos nas revisões fixadas. O andamento detalhado fica em `compilacao.log`.
-4. Nas próximas vezes, clique em **Jogar**. **F1** abre o menu de controles durante o jogo.
+1. Baixe o instalador para Windows x64. [Tekken5Recomp-Setup.exe](https://github.com/rogerddr3/tekken5-vulkan/releases/latest/download/Tekken5Recomp-Setup.exe)
+2. Execute o instalador e selecione sua ISO americana de Tekken 5 (SLUS-21059, v1.00) no launcher. Em **Início**, clique em **Preparar jogo**. O instalador inclui as ferramentas de compilação.
+3. Depois do preparo, clique em **Jogar**. **F1** abre o menu de controles durante o jogo.
+
+A versão **0.2.0** inclui **Devil Within** e os três títulos de **Arcade History**. Quem usa a 0.1.5 pode atualizar pelo menu de versões do launcher. O primeiro **Jogar** recompila os programas adicionais.
 
 ## Opções
 

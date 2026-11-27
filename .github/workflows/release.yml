@@ -1,4 +1,4 @@
-name: Publicar launcher para Windows
+name: Publicar Tekken 5 Recomp para Windows
 on:
   workflow_dispatch:
   push:
@@ -11,15 +11,31 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compilar e empacotar
+      - name: Obter as ferramentas do instalador 0.1.5
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.1.5 --pattern '*Setup.exe' --dir base
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Compilar e verificar a distribuição
         shell: powershell
-        run: ./launcher/Empacotar.ps1
-      - name: Publicar o pacote
+        run: |
+          $base = @(Get-ChildItem base -Filter '*Setup.exe')
+          if ($base.Count -ne 1) { throw 'Esperado um instalador de base.' }
+          ./launcher/Empacotar.ps1 -InstaladorBase $base[0].FullName
+          ./installer/Verificar.ps1 -InstaladorBase $base[0].FullName
+      - name: Publicar o instalador e o pacote de atualização
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
-          $notes = git log -1 --format=%b
-          $notes = (@("Launcher Windows x64. Extraia o ZIP e abra Tekken5Launcher.exe. A primeira compilação usa sua ISO americana.", "") + $notes) -join [Environment]::NewLine
-          gh release create "v$version" dist/Tekken5Vulkan-Windows-x64.zip --target $env:GITHUB_SHA --title "Tekken 5 Vulkan $version" --notes $notes
+          gh release create "v$version" dist/Tekken5Recomp-Setup.exe dist/Tekken5Vulkan-Windows-x64.zip --target $env:GITHUB_SHA --title "Tekken 5 Recomp $version" --notes-file "release-notes/$version.md"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $assets = gh release view "v$version" --json assets | ConvertFrom-Json
+          foreach ($file in Get-ChildItem dist -File) {
+            $asset = @($assets.assets | Where-Object name -eq $file.Name)
+            $digest = 'sha256:' + (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($asset.Count -ne 1 -or $asset[0].size -ne $file.Length -or $asset[0].digest -ne $digest) { throw "Falha ao verificar $($file.Name)" }
+          }

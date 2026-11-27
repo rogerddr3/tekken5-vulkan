@@ -46,3 +46,4 @@ if result != source:
 if args.source_only: raise SystemExit()
 subprocess.run([str(cmake), "--build", str(build), "--target", "ps2run", "--parallel", "4"], check=True)
 print("Concluido. Abra o launcher e escolha a proporcao em Graficos.")
+

@@ -43,9 +43,9 @@ namespace Tekken5Launcher {
             var button=Find<Button>("ReleaseButton");
             button.Content="Lançamento · "+Releases.Installed+"  ▾";
             if (newer!=null) {
-                button.Background=(Brush)new BrushConverter().ConvertFrom("#916E39");
+                button.Background=(Brush)new BrushConverter().ConvertFrom("#8B302D");
                 button.Content="Atualizar · "+newer.Version+"  ▾";
-            } else button.Background=(Brush)new BrushConverter().ConvertFrom("#304339");
+            } else button.Background=(Brush)new BrushConverter().ConvertFrom("#422127");
             button.ToolTip="Versão instalada: "+Releases.Installed;
         }
         async Task CheckReleases() {

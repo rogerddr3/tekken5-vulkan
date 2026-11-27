@@ -1,4 +1,8 @@
 param([string]$Iso = (Join-Path $PSScriptRoot '..\SLUS-21059 (1.00).iso'), [ValidateRange(1,32)][int]$Jobs = 7, [switch]$Otimizar)
+$portable = Join-Path $PSScriptRoot 'ferramentas'
+if (Test-Path -LiteralPath $portable) {
+    $env:Path = "$(Join-Path $portable 'python');$(Join-Path $portable 'cmake/bin');$env:Path"
+}
 $ErrorActionPreference = 'Stop'
 $isoPath = (Resolve-Path -LiteralPath $Iso).Path
 $engine = Join-Path $PSScriptRoot 'ps2-native-recomp'
@@ -8,6 +12,16 @@ $data = Join-Path $PSScriptRoot 'dados-locais'
 function Run([string]$Program, [string[]]$Options) {
     & $Program @Options
     if ($LASTEXITCODE -ne 0) { throw "$Program encerrou com o codigo $LASTEXITCODE." }
+}
+function Configure([string]$BuildDir, [string[]]$Options) {
+    $cache = Join-Path $BuildDir 'CMakeCache.txt'
+    if (Test-Path -LiteralPath $cache) {
+        $cached = Select-String -LiteralPath $cache -Pattern '^CMAKE_CACHEFILE_DIR:INTERNAL=(.*)$'
+        if ($cached -and [IO.Path]::GetFullPath($cached.Matches[0].Groups[1].Value) -ne (Resolve-Path $BuildDir).Path) {
+            $Options = @('--fresh') + $Options
+        }
+    }
+    Run cmake ($Options + @('-B', $BuildDir))
 }
 if (!$Otimizar -and (Get-FileHash -LiteralPath $isoPath -Algorithm SHA1).Hash -ne 'AEC7958A90D603DAEC0BF850F2F0EB19029CF11F') {
     throw 'Esta compilacao usa o disco americano SLUS-21059 v1.00 testado neste projeto.'
@@ -22,7 +36,9 @@ try {
     foreach ($dep in 'third_party/wgpu-native/lib/libwgpu_native.a','third_party/sdl2/lib/libSDL2.a') {
         if (!(Test-Path -LiteralPath $dep)) { throw "Dependencia ausente: $dep" }
     }
-    if (!$Otimizar) {
+    $images = @('loader','lzstub','devil','tekken1','tekken2','tekken3')
+    $missingElf = @($images | Where-Object { !(Test-Path -LiteralPath (Join-Path $data "elf/$_.elf")) })
+    if (!$Otimizar -or $missingElf.Count) {
         foreach ($script in 'ps2_extract.py','tk5data.py') { Run python @((Join-Path $extractors $script), $isoPath, $data) }
         Run python @((Join-Path $extractors 'make_elfs.py'), $data)
     }
@@ -32,9 +48,15 @@ try {
     $entries = Join-Path $PSScriptRoot 'entradas-tekken5.txt'
     $elf = Join-Path $data 'elf/main.elf'
     $config = @('-G','Ninja','-S','.',"-DCMAKE_MAKE_PROGRAM=$ninja","-DCMAKE_CXX_COMPILER=$compiler",'-DCMAKE_BUILD_TYPE=Release','-DPS2_WIN_STATIC=ON')
-    Run cmake ($config + @('-B','build/tradutores'))
+    Configure 'build/tradutores' $config
     Run cmake @('--build','build/tradutores','--target','eerecomp','vurecomp','--parallel',"$Jobs")
     if (!$Otimizar) { Run 'build/tradutores/eerecomp.exe' @($elf,'--entries',$entries,'--out',$gen) }
+    foreach ($image in $images) {
+        $output = Join-Path $gen $image
+        if (!$Otimizar -or !(Test-Path -LiteralPath (Join-Path $output 'table.cpp'))) {
+            Run 'build/tradutores/eerecomp.exe' @((Join-Path $data "elf/$image.elf"), '--out', $output)
+        }
+    }
     Run python @((Join-Path $PSScriptRoot 'CameraLauncher.py'), '--root', $PSScriptRoot, '--source-only')
     $recordings = @(foreach ($unit in 'vu0','vu1') {
         $dir = [IO.Directory]::CreateDirectory((Join-Path $game $unit))
@@ -48,9 +70,9 @@ try {
     if ($LASTEXITCODE -eq 0 -and $nativeMacros -contains '#define __AVX2__ 1') {
         $gameFlags = '-mavx2 -ffp-contract=off'
     }
-    Run cmake ($config + @('-B',$build,"-DPS2_GENERATED=$gen","-DCMAKE_CXX_FLAGS=$gameFlags"))
+    Configure $build ($config + @("-DPS2_GENERATED=$gen","-DCMAKE_CXX_FLAGS=$gameFlags"))
     Run cmake @('--build',$build,'--target','ps2run','--parallel',"$Jobs")
-    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v3.ok'), [string[]]$recordings)
+    [IO.File]::WriteAllLines((Join-Path (Resolve-Path $build) 'preparo-v4.ok'), [string[]]$recordings)
 } finally {
     Pop-Location
     $env:Path = $originalPath
